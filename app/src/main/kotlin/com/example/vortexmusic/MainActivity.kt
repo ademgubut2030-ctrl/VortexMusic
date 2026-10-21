@@ -10,18 +10,9 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.PixelFormat
-import android.graphics.Shader
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Binder
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -37,317 +28,23 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.abs
-
-// ================== NEON ZEMİN ==================
-
-class NeonBackgroundDrawable(
-    private val top: Int,
-    private val bottom: Int,
-    private val purple: Int,
-    private val blue: Int,
-    private val density: Float
-) : Drawable() {
-
-    private val fillPaint = Paint()
-    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
-    }
-
-    private fun withAlpha(color: Int, alpha: Int): Int =
-        (color and 0x00FFFFFF) or (alpha shl 24)
-
-    private fun glowLine(
-        canvas: Canvas,
-        x1: Float,
-        y1: Float,
-        x2: Float,
-        y2: Float,
-        color: Int
-    ) {
-        val widths = floatArrayOf(14f, 8f, 4f, 1.6f)
-        val alphas = intArrayOf(14, 28, 56, 140)
-        for (i in widths.indices) {
-            linePaint.strokeWidth = widths[i] * density
-            linePaint.color = withAlpha(color, alphas[i])
-            canvas.drawLine(x1, y1, x2, y2, linePaint)
-        }
-    }
-
-    override fun draw(canvas: Canvas) {
-        val w = bounds.width().toFloat()
-        val h = bounds.height().toFloat()
-        fillPaint.shader = LinearGradient(0f, 0f, 0f, h, top, bottom, Shader.TileMode.CLAMP)
-        canvas.drawRect(bounds, fillPaint)
-        glowLine(canvas, -0.05f * w, 0.19f * h, 1.05f * w, 0.00f * h, purple)
-        glowLine(canvas, -0.05f * w, 0.25f * h, 1.05f * w, 0.06f * h, purple)
-        glowLine(canvas, -0.05f * w, 0.86f * h, 0.55f * w, 1.04f * h, blue)
-        glowLine(canvas, -0.05f * w, 0.93f * h, 0.30f * w, 1.04f * h, blue)
-    }
-
-    override fun setAlpha(alpha: Int) {}
-
-    override fun setColorFilter(colorFilter: ColorFilter?) {}
-
-    @Deprecated("Deprecated in Java")
-    override fun getOpacity(): Int = PixelFormat.OPAQUE
-}
-
-// ================== MİNİMALİST İKONLAR ==================
-
-class IconDrawable(
-    private val kind: Int,
-    private val tint: Int,
-    private val sizePx: Int,
-    private val filled: Boolean = false,
-    private val glowColor: Int = 0
-) : Drawable() {
-
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-    }
-    private val path = buildPath()
-
-    override fun getIntrinsicWidth(): Int = sizePx
-    override fun getIntrinsicHeight(): Int = sizePx
-
-    override fun draw(canvas: Canvas) {
-        val w = bounds.width()
-        val h = bounds.height()
-        if (w <= 0 || h <= 0) return
-        val s = minOf(w, h) / 24f
-        canvas.save()
-        canvas.translate(
-            bounds.left + (w - 24f * s) / 2f,
-            bounds.top + (h - 24f * s) / 2f
-        )
-        canvas.scale(s, s)
-        val base = if (kind == PAUSE) 3.2f else 1.9f
-        val doFill = filled && (kind == PLAY || kind == HEART || kind == NEXT || kind == PREV)
-        if (glowColor != 0) {
-            drawPass(canvas, glowColor, base + 4.5f, 40, false)
-            drawPass(canvas, glowColor, base + 2.2f, 80, false)
-        }
-        drawPass(canvas, tint, base, 255, doFill)
-        canvas.restore()
-    }
-
-    private fun drawPass(canvas: Canvas, color: Int, width: Float, alpha: Int, fill: Boolean) {
-        paint.color = color
-        paint.alpha = alpha
-        paint.strokeWidth = width
-        paint.style = if (fill) Paint.Style.FILL_AND_STROKE else Paint.Style.STROKE
-        canvas.drawPath(path, paint)
-    }
-
-    private fun buildPath(): Path {
-        val p = Path()
-        when (kind) {
-            HOME -> {
-                p.moveTo(3.5f, 11f); p.lineTo(12f, 4f); p.lineTo(20.5f, 11f)
-                p.moveTo(6f, 9.5f); p.lineTo(6f, 20f); p.lineTo(18f, 20f); p.lineTo(18f, 9.5f)
-            }
-            SEARCH -> {
-                p.addCircle(10.5f, 10.5f, 6.5f, Path.Direction.CW)
-                p.moveTo(15.5f, 15.5f); p.lineTo(20.5f, 20.5f)
-            }
-            NOTE -> {
-                p.moveTo(9.5f, 17.5f); p.lineTo(9.5f, 6f); p.lineTo(18.5f, 4f); p.lineTo(18.5f, 15.5f)
-                p.addCircle(7f, 17.5f, 2.5f, Path.Direction.CW)
-                p.addCircle(16f, 15.5f, 2.5f, Path.Direction.CW)
-            }
-            HEART -> {
-                p.moveTo(12f, 20.5f)
-                p.cubicTo(5f, 15f, 3f, 11.5f, 3f, 8.5f)
-                p.cubicTo(3f, 5.7f, 5f, 4f, 7.2f, 4f)
-                p.cubicTo(9.2f, 4f, 11f, 5.2f, 12f, 7f)
-                p.cubicTo(13f, 5.2f, 14.8f, 4f, 16.8f, 4f)
-                p.cubicTo(19f, 4f, 21f, 5.7f, 21f, 8.5f)
-                p.cubicTo(21f, 11.5f, 19f, 15f, 12f, 20.5f)
-                p.close()
-            }
-            PLAY -> {
-                p.moveTo(8f, 5f); p.lineTo(19f, 12f); p.lineTo(8f, 19f); p.close()
-            }
-            PAUSE -> {
-                p.moveTo(8.5f, 5.5f); p.lineTo(8.5f, 18.5f)
-                p.moveTo(15.5f, 5.5f); p.lineTo(15.5f, 18.5f)
-            }
-            NEXT -> {
-                p.moveTo(6f, 5.5f); p.lineTo(15.5f, 12f); p.lineTo(6f, 18.5f); p.close()
-                p.moveTo(18.5f, 5.5f); p.lineTo(18.5f, 18.5f)
-            }
-            PREV -> {
-                p.moveTo(18f, 5.5f); p.lineTo(8.5f, 12f); p.lineTo(18f, 18.5f); p.close()
-                p.moveTo(5.5f, 5.5f); p.lineTo(5.5f, 18.5f)
-            }
-            SHUFFLE -> {
-                p.moveTo(3f, 7f); p.lineTo(7f, 7f)
-                p.cubicTo(12.5f, 7f, 11f, 17f, 16.5f, 17f); p.lineTo(20.5f, 17f)
-                p.moveTo(3f, 17f); p.lineTo(7f, 17f)
-                p.cubicTo(8.7f, 17f, 9.9f, 16.1f, 10.8f, 14.8f)
-                p.moveTo(13.2f, 9.2f)
-                p.cubicTo(14.1f, 7.9f, 15.3f, 7f, 16.5f, 7f); p.lineTo(20.5f, 7f)
-                p.moveTo(18f, 14.5f); p.lineTo(20.5f, 17f); p.lineTo(18f, 19.5f)
-                p.moveTo(18f, 4.5f); p.lineTo(20.5f, 7f); p.lineTo(18f, 9.5f)
-            }
-            REPEAT -> {
-                p.moveTo(4f, 11f); p.lineTo(4f, 9f)
-                p.cubicTo(4f, 7.3f, 5.3f, 6f, 7f, 6f); p.lineTo(20f, 6f)
-                p.moveTo(17f, 3f); p.lineTo(20f, 6f); p.lineTo(17f, 9f)
-                p.moveTo(20f, 13f); p.lineTo(20f, 15f)
-                p.cubicTo(20f, 16.7f, 18.7f, 18f, 17f, 18f); p.lineTo(4f, 18f)
-                p.moveTo(7f, 15f); p.lineTo(4f, 18f); p.lineTo(7f, 21f)
-            }
-            FOLDER, FOLDER_PLUS -> {
-                p.moveTo(3f, 7f); p.lineTo(3f, 18.5f)
-                p.cubicTo(3f, 19.3f, 3.7f, 20f, 4.5f, 20f); p.lineTo(19.5f, 20f)
-                p.cubicTo(20.3f, 20f, 21f, 19.3f, 21f, 18.5f); p.lineTo(21f, 9.5f)
-                p.cubicTo(21f, 8.7f, 20.3f, 8f, 19.5f, 8f); p.lineTo(11f, 8f)
-                p.lineTo(9f, 5.5f); p.lineTo(4.5f, 5.5f)
-                p.cubicTo(3.7f, 5.5f, 3f, 6.2f, 3f, 7f)
-                p.close()
-                if (kind == FOLDER_PLUS) {
-                    p.moveTo(12f, 11.5f); p.lineTo(12f, 17f)
-                    p.moveTo(9.25f, 14.25f); p.lineTo(14.75f, 14.25f)
-                }
-            }
-            PLUS -> {
-                p.moveTo(12f, 5f); p.lineTo(12f, 19f)
-                p.moveTo(5f, 12f); p.lineTo(19f, 12f)
-            }
-            ARTIST -> {
-                p.addCircle(12f, 8f, 3.8f, Path.Direction.CW)
-                p.moveTo(5f, 20f)
-                p.cubicTo(5f, 15.5f, 8f, 14f, 12f, 14f)
-                p.cubicTo(16f, 14f, 19f, 15.5f, 19f, 20f)
-            }
-            DISC -> {
-                p.addCircle(12f, 12f, 8.5f, Path.Direction.CW)
-                p.addCircle(12f, 12f, 2.5f, Path.Direction.CW)
-            }
-            DOWNLOAD -> {
-                p.moveTo(12f, 4f); p.lineTo(12f, 15f)
-                p.moveTo(7f, 10.5f); p.lineTo(12f, 15.5f); p.lineTo(17f, 10.5f)
-                p.moveTo(5f, 20f); p.lineTo(19f, 20f)
-            }
-            CLOCK -> {
-                p.addCircle(12f, 13.5f, 7.5f, Path.Direction.CW)
-                p.moveTo(12f, 13.5f); p.lineTo(12f, 9.5f)
-                p.moveTo(9.5f, 3.5f); p.lineTo(14.5f, 3.5f)
-            }
-            CHEVRON -> {
-                p.moveTo(15f, 5f); p.lineTo(8f, 12f); p.lineTo(15f, 19f)
-            }
-        }
-        return p
-    }
-
-    override fun setAlpha(alpha: Int) {}
-
-    override fun setColorFilter(colorFilter: ColorFilter?) {
-        paint.colorFilter = colorFilter
-        invalidateSelf()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
-
-    companion object {
-        const val HOME = 0
-        const val SEARCH = 1
-        const val NOTE = 2
-        const val HEART = 3
-        const val PLAY = 4
-        const val PAUSE = 5
-        const val NEXT = 6
-        const val PREV = 7
-        const val SHUFFLE = 8
-        const val REPEAT = 9
-        const val FOLDER = 10
-        const val FOLDER_PLUS = 11
-        const val PLUS = 12
-        const val ARTIST = 13
-        const val DISC = 14
-        const val DOWNLOAD = 15
-        const val CLOCK = 16
-        const val CHEVRON = 17
-    }
-}
-
-// ================== ARKA PLAN ÇALMA SERVİSİ ==================
-
-class PlaybackService : MediaSessionService() {
-
-    private var session: MediaSession? = null
-    private var exoPlayer: ExoPlayer? = null
-
-    inner class LocalBinder : Binder() {
-        fun getPlayer(): ExoPlayer? = exoPlayer
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        val exo = ExoPlayer.Builder(this)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                true
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .build()
-        exoPlayer = exo
-        val newSession = MediaSession.Builder(this, exo).build()
-        session = newSession
-        addSession(newSession)
-    }
-
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return if (intent?.action == ACTION_LOCAL) LocalBinder() else super.onBind(intent)
-    }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        val p = exoPlayer
-        if (p == null || !p.playWhenReady || p.mediaItemCount == 0) {
-            stopSelf()
-        }
-    }
-
-    override fun onDestroy() {
-        session?.release()
-        exoPlayer?.release()
-        session = null
-        exoPlayer = null
-        super.onDestroy()
-    }
-
-    companion object {
-        const val ACTION_LOCAL = "com.example.vortexmusic.LOCAL"
-    }
-}
-
-// ================== ANA EKRAN ==================
 
 class MainActivity : Activity() {
 
@@ -379,7 +76,9 @@ class MainActivity : Activity() {
     // 4 albümler, 5 albüm şarkıları, 6 klasörler, 7 klasör şarkıları
     private var libView = 0
     private var selectedGroup = ""
+    private var statsDays = 7
     private var player: ExoPlayer? = null
+    private var fx: AudioFxController? = null
     private val adapter = SongAdapter()
     private val libAdapter = RowAdapter()
 
@@ -391,6 +90,13 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var searchBox: EditText
     private lateinit var searchButton: ImageView
+    private lateinit var statsButton: ImageView
+    private lateinit var audioButton: ImageView
+    private lateinit var statsScreen: LinearLayout
+    private lateinit var statsChips: LinearLayout
+    private lateinit var statsContent: LinearLayout
+    private lateinit var audioScreen: LinearLayout
+    private lateinit var audioContent: LinearLayout
     private lateinit var chipScroll: HorizontalScrollView
     private lateinit var chipContainer: LinearLayout
     private lateinit var nowTitle: TextView
@@ -442,13 +148,16 @@ class MainActivity : Activity() {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val p = (service as? PlaybackService.LocalBinder)?.getPlayer() ?: return
+            val binder = service as? PlaybackService.LocalBinder ?: return
+            val p = binder.getPlayer() ?: return
+            fx = binder.getFx()
             attachPlayer(p)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             player?.removeListener(playerListener)
             player = null
+            fx = null
         }
     }
 
@@ -468,12 +177,38 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- Yardımcılar ----------
+
+    private fun audioPermission(): String =
+        if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+        else Manifest.permission.READ_EXTERNAL_STORAGE
+
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
     private fun color(id: Int): Int = resources.getColor(id, theme)
+
     private fun fmt(ms: Long): String {
         val s = ms / 1000
         return "%d:%02d".format(s / 60, s % 60)
     }
+
+    private fun fmtLong(ms: Long): String {
+        val s = ms / 1000
+        val h = s / 3600
+        val m = (s % 3600) / 60
+        val sec = s % 60
+        return when {
+            h > 0 -> "$h sa $m dk"
+            m > 0 -> "$m dk $sec sn"
+            else -> "$sec sn"
+        }
+    }
+
+    private fun fmtFreq(f: Int): String =
+        if (f >= 1000) {
+            if (f % 1000 == 0) "${f / 1000} kHz" else String.format(Locale.US, "%.1f kHz", f / 1000f)
+        } else {
+            "$f Hz"
+        }
 
     private fun toast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
@@ -543,6 +278,33 @@ class MainActivity : Activity() {
         playPauseButton = findViewById(R.id.playPauseButton)
         val miniPlayer = findViewById<LinearLayout>(R.id.miniPlayer)
         val navBar = findViewById<LinearLayout>(R.id.navBar)
+
+        // İstatistik ve ses ekranları koddan eklenir
+        statsScreen = buildStatsScreen()
+        (root.parent as FrameLayout).addView(statsScreen)
+        audioScreen = buildAudioScreen()
+        (root.parent as FrameLayout).addView(audioScreen)
+
+        statsButton = ImageView(this).apply {
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(dp(46), dp(46))
+            setImageDrawable(icon(IconDrawable.CHART, color(R.color.vortex_text_secondary), 24))
+            setOnClickListener { showStats() }
+        }
+        val headerRow = searchButton.parent as LinearLayout
+        headerRow.addView(statsButton, headerRow.indexOfChild(searchButton))
+
+        audioButton = ImageView(this).apply {
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(dp(46), dp(46))
+            setImageDrawable(icon(IconDrawable.EQ, color(R.color.vortex_text_secondary), 24))
+            setOnClickListener { showAudio() }
+        }
+        headerRow.addView(audioButton, headerRow.indexOfChild(statsButton))
 
         // Süzgeç düğmeleri satırı (Kütüphane için), arama kutusunun altına eklenir
         chipScroll = HorizontalScrollView(this).apply {
@@ -737,11 +499,10 @@ class MainActivity : Activity() {
             )
         }
 
-        // İzinler
+        // İzinler (Android sürümüne göre doğru müzik izni istenir)
         val needed = mutableListOf<String>()
-        val audioOk = checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!audioOk) needed.add(Manifest.permission.READ_MEDIA_AUDIO)
+        val audioOk = checkSelfPermission(audioPermission()) == PackageManager.PERMISSION_GRANTED
+        if (!audioOk) needed.add(audioPermission())
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -832,7 +593,11 @@ class MainActivity : Activity() {
     }
 
     private fun handleBack() {
-        if (nowPlayingScreen.visibility == View.VISIBLE) {
+        if (audioScreen.visibility == View.VISIBLE) {
+            hideAudio()
+        } else if (statsScreen.visibility == View.VISIBLE) {
+            hideStats()
+        } else if (nowPlayingScreen.visibility == View.VISIBLE) {
             hideNowPlaying()
         } else if (mode == 2 && libView != 0) {
             setLibView(
@@ -1037,6 +802,770 @@ class MainActivity : Activity() {
                 else -> "$selectedGroup · ${shown.size} şarkı"
             }
             else -> "${songs.size} şarkı"
+        }
+    }
+
+    // ---------- Ses ekranı (ekolayzır, efektler, profiller) ----------
+
+    private fun buildAudioScreen(): LinearLayout {
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = true
+            background = neonBackground()
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        screen.setOnApplyWindowInsetsListener { v, insets ->
+            v.setPadding(
+                dp(16),
+                insets.systemWindowInsetTop + dp(12),
+                dp(16),
+                insets.systemWindowInsetBottom + dp(12)
+            )
+            insets
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val close = ImageView(this).apply {
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            isClickable = true
+            isFocusable = true
+            setImageDrawable(icon(IconDrawable.CHEVRON, color(R.color.vortex_purple), 24))
+            layoutParams = LinearLayout.LayoutParams(dp(46), dp(46))
+            setOnClickListener { hideAudio() }
+        }
+        val title = TextView(this).apply {
+            text = "Ses"
+            textSize = 24f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(color(R.color.vortex_text))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(4) }
+        }
+        header.addView(close)
+        header.addView(title)
+
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            ).apply { topMargin = dp(8) }
+        }
+        audioContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scroll.addView(audioContent)
+
+        screen.addView(header)
+        screen.addView(scroll)
+        return screen
+    }
+
+    private fun showAudio() {
+        renderAudio()
+        audioScreen.visibility = View.VISIBLE
+    }
+
+    private fun hideAudio() {
+        audioScreen.visibility = View.GONE
+    }
+
+    private fun slider(
+        label: String,
+        maxValue: Int,
+        startValue: Int,
+        format: (Int) -> String,
+        onChange: (Int) -> Unit,
+        onDone: () -> Unit
+    ): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(8), dp(2), dp(2))
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val name = TextView(this).apply {
+            text = label
+            textSize = 14f
+            setTextColor(color(R.color.vortex_text))
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val value = TextView(this).apply {
+            text = format(startValue)
+            textSize = 13f
+            setTextColor(color(R.color.vortex_text_secondary))
+        }
+        top.addView(name)
+        top.addView(value)
+
+        val bar = SeekBar(this)
+        bar.max = maxValue
+        bar.progress = startValue
+        bar.progressTintList = ColorStateList.valueOf(color(R.color.vortex_purple))
+        bar.thumbTintList = ColorStateList.valueOf(color(R.color.vortex_blue))
+        bar.progressBackgroundTintList = ColorStateList.valueOf(color(R.color.vortex_surface_light))
+        bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                value.text = format(progress)
+                if (fromUser) onChange(progress)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                onDone()
+            }
+        })
+        box.addView(top)
+        box.addView(bar)
+        return box
+    }
+
+    private fun actionPill(label: String, onClick: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        textSize = 13f
+        gravity = Gravity.CENTER
+        setTextColor(color(R.color.vortex_text))
+        background = pillBackground(false)
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        layoutParams = LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ).apply { marginEnd = dp(6) }
+        setOnClickListener { onClick() }
+    }
+
+    private fun renderAudio() {
+        audioContent.removeAllViews()
+        val f = fx
+        if (f == null) {
+            audioContent.addView(
+                noteText("Ses motoru henüz hazır değil. Birkaç saniye sonra tekrar aç.")
+            )
+            return
+        }
+
+        // Açma / kapama
+        audioContent.addView(TextView(this).apply {
+            text = if (f.enabled) "Ses efektleri: Açık" else "Ses efektleri: Kapalı"
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTextColor(if (f.enabled) Color.WHITE else color(R.color.vortex_text))
+            background = pillBackground(f.enabled)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+            setOnClickListener {
+                f.enabled = !f.enabled
+                f.applyAll()
+                f.save()
+                renderAudio()
+            }
+        })
+
+        // Hazır ayarlar
+        audioContent.addView(sectionTitle("Hazır ayarlar"))
+        val presetScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+        }
+        val presetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        for (preset in f.presets) {
+            val active = f.enabled && f.matches(preset)
+            presetRow.addView(TextView(this).apply {
+                text = preset.name
+                textSize = 14f
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                setTextColor(if (active) Color.WHITE else color(R.color.vortex_text))
+                background = pillBackground(active)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(8) }
+                setOnClickListener {
+                    f.setPreset(preset)
+                    renderAudio()
+                }
+            })
+        }
+        presetScroll.addView(presetRow)
+        audioContent.addView(presetScroll)
+
+        // Profillerim
+        audioContent.addView(sectionTitle("Profillerim"))
+        if (f.profiles.isEmpty()) {
+            audioContent.addView(
+                noteText(
+                    "Henüz profil yok. Ayarlarını yapıp \"Profil olarak kaydet\" de. " +
+                        "Kulaklık adını yazarsan ileride Bluetooth'a göre otomatik seçilecek."
+                )
+            )
+        } else {
+            val profScroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+            }
+            val profRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+            for (prof in f.profiles.toList()) {
+                val active = f.enabled && f.matchesProfile(prof)
+                profRow.addView(TextView(this).apply {
+                    text = if (prof.headphone.isEmpty()) prof.name else "${prof.name} · ${prof.headphone}"
+                    textSize = 14f
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                    setTextColor(if (active) Color.WHITE else color(R.color.vortex_text))
+                    background = pillBackground(active)
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { marginEnd = dp(8) }
+                    setOnClickListener {
+                        f.applyProfile(prof)
+                        renderAudio()
+                    }
+                    setOnLongClickListener {
+                        profileOptions(prof.name)
+                        true
+                    }
+                })
+            }
+            profScroll.addView(profRow)
+            audioContent.addView(profScroll)
+            audioContent.addView(noteText("Silmek için profile uzun bas."))
+        }
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        actions.addView(actionPill("Profil olarak kaydet") { askSaveProfile() })
+        actions.addView(actionPill("Dışa aktar") { exportProfiles() })
+        actions.addView(actionPill("İçe aktar") { importProfiles() })
+        audioContent.addView(actions)
+
+        // Ekolayzır bantları
+        audioContent.addView(sectionTitle("Ekolayzır"))
+        if (!f.eqAvailable || f.bandCount == 0) {
+            audioContent.addView(noteText("Bu telefon ekolayzırı desteklemiyor."))
+        } else {
+            val minLv = f.minLevel
+            val span = f.maxLevel - f.minLevel
+            for (i in 0 until f.bandCount) {
+                audioContent.addView(
+                    slider(
+                        fmtFreq(f.bandFreqs.getOrElse(i) { 0 }),
+                        span,
+                        f.levels.getOrElse(i) { 0 } - minLv,
+                        { p -> String.format(Locale.US, "%+.1f dB", (p + minLv) / 100f) },
+                        { p -> f.setBand(i, p + minLv) },
+                        { f.save() }
+                    )
+                )
+            }
+        }
+
+        // Efektler
+        audioContent.addView(sectionTitle("Efektler"))
+        if (f.bassAvailable) {
+            audioContent.addView(
+                slider(
+                    "Bas güçlendirici", 1000, f.bassStrength,
+                    { p -> "${p / 10}%" },
+                    { p ->
+                        f.bassStrength = p
+                        f.applyAll()
+                    },
+                    { f.save() }
+                )
+            )
+        }
+        if (f.loudAvailable) {
+            audioContent.addView(
+                slider(
+                    "Ses yükseltme", 1000, f.loudnessMb,
+                    { p -> String.format(Locale.US, "+%.1f dB", p / 100f) },
+                    { p ->
+                        f.loudnessMb = p
+                        f.applyAll()
+                    },
+                    { f.save() }
+                )
+            )
+        }
+        if (f.virtAvailable) {
+            audioContent.addView(
+                slider(
+                    "Sanal surround", 1000, f.virtStrength,
+                    { p -> "${p / 10}%" },
+                    { p ->
+                        f.virtStrength = p
+                        f.applyAll()
+                    },
+                    { f.save() }
+                )
+            )
+        }
+        if (!f.bassAvailable && !f.loudAvailable && !f.virtAvailable) {
+            audioContent.addView(noteText("Bu telefon ek ses efektlerini desteklemiyor."))
+        }
+        audioContent.addView(
+            noteText(
+                "Efektlerin gücü telefon markasına ve kulaklığa göre değişir. " +
+                    "Çok yüksek ses yükseltme sesi bozabilir."
+            )
+        )
+    }
+
+    private fun askSaveProfile() {
+        val f = fx ?: return
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        val nameInput = EditText(this).apply {
+            hint = "Profil adı"
+            setSingleLine(true)
+        }
+        val phoneInput = EditText(this).apply {
+            hint = "Kulaklık (isteğe bağlı)"
+            setSingleLine(true)
+        }
+        box.addView(nameInput)
+        box.addView(phoneInput)
+        AlertDialog.Builder(this)
+            .setTitle("Profil olarak kaydet")
+            .setView(box)
+            .setPositiveButton("Kaydet") { _, _ ->
+                if (f.saveCurrentAsProfile(nameInput.text.toString(), phoneInput.text.toString())) {
+                    toast("Profil kaydedildi")
+                    renderAudio()
+                } else {
+                    toast("Profil adı boş olamaz")
+                }
+            }
+            .setNegativeButton("Vazgeç", null)
+            .show()
+    }
+
+    private fun profileOptions(name: String) {
+        val f = fx ?: return
+        AlertDialog.Builder(this)
+            .setTitle(name)
+            .setItems(arrayOf("Sil")) { _, _ ->
+                f.deleteProfile(name)
+                renderAudio()
+            }
+            .show()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun exportProfiles() {
+        val f = fx ?: return
+        if (f.profiles.isEmpty()) {
+            toast("Dışa aktarılacak profil yok")
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+            .putExtra(Intent.EXTRA_TITLE, "vortex-ses-profilleri.json")
+        startActivityForResult(intent, REQ_EXPORT)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun importProfiles() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+        startActivityForResult(intent, REQ_IMPORT)
+    }
+
+    private fun readLimited(uri: Uri): String? {
+        return try {
+            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { r ->
+                val sb = StringBuilder()
+                val buf = CharArray(4096)
+                while (true) {
+                    val n = r.read(buf)
+                    if (n < 0) break
+                    sb.append(buf, 0, n)
+                    if (sb.length > 500000) return@use null
+                }
+                sb.toString()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        val f = fx ?: return
+        if (requestCode == REQ_EXPORT) {
+            try {
+                contentResolver.openOutputStream(uri)?.use {
+                    it.write(f.exportJson().toByteArray(Charsets.UTF_8))
+                }
+                toast("Profiller dışa aktarıldı")
+            } catch (e: Exception) {
+                toast("Dosya yazılamadı")
+            }
+        } else if (requestCode == REQ_IMPORT) {
+            val text = readLimited(uri)
+            if (text == null) {
+                toast("Dosya okunamadı ya da çok büyük")
+                return
+            }
+            val n = f.importJson(text)
+            if (n > 0) toast("$n profil içe aktarıldı")
+            else toast("Geçerli bir Vortex profil dosyası değil")
+            if (audioScreen.visibility == View.VISIBLE) renderAudio()
+        }
+    }
+
+    // ---------- İstatistikler ----------
+
+    private fun buildStatsScreen(): LinearLayout {
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = true
+            background = neonBackground()
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        screen.setOnApplyWindowInsetsListener { v, insets ->
+            v.setPadding(
+                dp(16),
+                insets.systemWindowInsetTop + dp(12),
+                dp(16),
+                insets.systemWindowInsetBottom + dp(12)
+            )
+            insets
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val close = ImageView(this).apply {
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            isClickable = true
+            isFocusable = true
+            setImageDrawable(icon(IconDrawable.CHEVRON, color(R.color.vortex_purple), 24))
+            layoutParams = LinearLayout.LayoutParams(dp(46), dp(46))
+            setOnClickListener { hideStats() }
+        }
+        val title = TextView(this).apply {
+            text = "İstatistikler"
+            textSize = 24f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(color(R.color.vortex_text))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(4) }
+        }
+        header.addView(close)
+        header.addView(title)
+
+        statsChips = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            ).apply { topMargin = dp(12) }
+        }
+        statsContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scroll.addView(statsContent)
+
+        screen.addView(header)
+        screen.addView(statsChips)
+        screen.addView(scroll)
+        return screen
+    }
+
+    private fun showStats() {
+        updateStatsChips()
+        renderStats()
+        statsScreen.visibility = View.VISIBLE
+    }
+
+    private fun hideStats() {
+        statsScreen.visibility = View.GONE
+    }
+
+    private fun updateStatsChips() {
+        statsChips.removeAllViews()
+        val labels = arrayOf("Bugün", "Hafta", "Ay", "Tümü")
+        val values = intArrayOf(1, 7, 30, 0)
+        labels.forEachIndexed { i, label ->
+            val selected = statsDays == values[i]
+            val chip = TextView(this).apply {
+                text = label
+                textSize = 14f
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                setTextColor(if (selected) Color.WHITE else color(R.color.vortex_text))
+                background = pillBackground(selected)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(8) }
+                setOnClickListener {
+                    statsDays = values[i]
+                    updateStatsChips()
+                    renderStats()
+                }
+            }
+            statsChips.addView(chip)
+        }
+    }
+
+    private fun sectionTitle(label: String): View = TextView(this).apply {
+        text = label
+        textSize = 16f
+        setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setTextColor(color(R.color.vortex_text))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(22)
+            bottomMargin = dp(8)
+        }
+    }
+
+    private fun noteText(label: String): View = TextView(this).apply {
+        text = label
+        textSize = 13f
+        setTextColor(color(R.color.vortex_text_secondary))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(8) }
+    }
+
+    private fun statRow(label: String, ms: Long, max: Long): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(6), dp(2), dp(6))
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val name = TextView(this).apply {
+            text = label
+            textSize = 15f
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setTextColor(color(R.color.vortex_text))
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val time = TextView(this).apply {
+            text = fmtLong(ms)
+            textSize = 13f
+            setTextColor(color(R.color.vortex_text_secondary))
+        }
+        top.addView(name)
+        top.addView(time)
+
+        val pct = ((ms * 100L) / max).toInt().coerceIn(3, 100)
+        val track = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            weightSum = 100f
+            background = GradientDrawable().apply {
+                setColor(color(R.color.vortex_surface_light))
+                cornerRadius = dp(4).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(8)
+            ).apply { topMargin = dp(6) }
+        }
+        val bar = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(color(R.color.vortex_purple), color(R.color.vortex_blue))
+            ).apply { cornerRadius = dp(4).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, pct.toFloat())
+        }
+        track.addView(bar)
+        if (pct < 100) {
+            track.addView(
+                View(this),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, (100 - pct).toFloat())
+            )
+        }
+        box.addView(top)
+        box.addView(track)
+        return box
+    }
+
+    private fun renderStats() {
+        statsContent.removeAllViews()
+        val prefs = getSharedPreferences("vortex_stats", MODE_PRIVATE)
+        val dayFormat = SimpleDateFormat("yyyyMMdd", Locale.US)
+        val cutoff: Int = if (statsDays <= 0) {
+            0
+        } else {
+            val c = Calendar.getInstance()
+            c.add(Calendar.DAY_OF_YEAR, -(statsDays - 1))
+            dayFormat.format(c.time).toInt()
+        }
+
+        val perSong = HashMap<Long, Long>()
+        val perDay = HashMap<Int, Long>()
+        for ((k, v) in prefs.all) {
+            if (!k.startsWith("ds_")) continue
+            val parts = k.split("_")
+            if (parts.size != 3) continue
+            val day = parts[1].toIntOrNull() ?: continue
+            val id = parts[2].toLongOrNull() ?: continue
+            val ms = (v as? Long) ?: continue
+            perDay[day] = (perDay[day] ?: 0L) + ms
+            if (day >= cutoff) perSong[id] = (perSong[id] ?: 0L) + ms
+        }
+
+        val byId = songs.associateBy { it.id }
+        val entries = perSong
+            .filter { byId.containsKey(it.key) && it.value > 0L }
+            .toList()
+            .sortedByDescending { it.second }
+
+        if (entries.isEmpty()) {
+            statsContent.addView(
+                noteText("Henüz dinleme kaydı yok. Bir şarkı çaldıkça ve duraklattıkça burada görünür.")
+            )
+            return
+        }
+
+        val periodLabel = when (statsDays) {
+            1 -> "bugün"
+            7 -> "son 7 gün"
+            30 -> "son 30 gün"
+            else -> "tüm zamanlar"
+        }
+        var total = 0L
+        for (e in entries) total += e.second
+
+        statsContent.addView(TextView(this).apply {
+            text = fmtLong(total)
+            textSize = 34f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(color(R.color.vortex_purple))
+        })
+        statsContent.addView(noteText("${entries.size} farklı şarkı · $periodLabel"))
+
+        // En çok dinlenen şarkılar
+        statsContent.addView(sectionTitle("En çok dinlenen şarkılar"))
+        val topSongs = entries.take(10)
+        val maxSong = topSongs.first().second
+        for (e in topSongs) {
+            val s = byId[e.first] ?: continue
+            statsContent.addView(statRow(s.title, e.second, maxSong))
+        }
+
+        // En çok dinlenen sanatçılar
+        val perArtist = HashMap<String, Long>()
+        for (e in entries) {
+            val s = byId[e.first] ?: continue
+            perArtist[s.artist] = (perArtist[s.artist] ?: 0L) + e.second
+        }
+        val topArtists = perArtist.toList().sortedByDescending { it.second }.take(5)
+        statsContent.addView(sectionTitle("En çok dinlenen sanatçılar"))
+        val maxArtist = topArtists.first().second
+        for (a in topArtists) {
+            statsContent.addView(statRow(a.first, a.second, maxArtist))
+        }
+
+        // Son 7 gün
+        val dayNames = arrayOf("Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt")
+        val weekValues = LongArray(7)
+        val weekLabels = Array(7) { "" }
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -6)
+        for (i in 0..6) {
+            val key = dayFormat.format(cal.time).toInt()
+            weekValues[i] = perDay[key] ?: 0L
+            weekLabels[i] = dayNames[cal.get(Calendar.DAY_OF_WEEK) - 1]
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        statsContent.addView(sectionTitle("Son 7 gün"))
+        statsContent.addView(
+            BarChartView(
+                this, weekValues, weekLabels,
+                color(R.color.vortex_purple), color(R.color.vortex_blue),
+                color(R.color.vortex_text_secondary),
+                resources.displayMetrics.density
+            ),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        // Günün saatleri
+        val hourValues = LongArray(24) { prefs.getLong("h_$it", 0L) }
+        val hourLabels = Array(24) { if (it % 6 == 0) "$it" else "" }
+        statsContent.addView(sectionTitle("Günün saatleri"))
+        statsContent.addView(
+            BarChartView(
+                this, hourValues, hourLabels,
+                color(R.color.vortex_blue), color(R.color.vortex_purple),
+                color(R.color.vortex_text_secondary),
+                resources.displayMetrics.density
+            ),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+        var peak = 0
+        var peakValue = 0L
+        for (h in 0..23) {
+            if (hourValues[h] > peakValue) {
+                peakValue = hourValues[h]
+                peak = h
+            }
+        }
+        if (peakValue > 0L) {
+            val persona = when (peak) {
+                in 5..11 -> "Sabahçısın"
+                in 12..17 -> "Öğleden sonra dinleyicisisin"
+                in 18..21 -> "Akşam dinleyicisisin"
+                else -> "Gece kuşusun"
+            }
+            statsContent.addView(
+                noteText("En çok %02d:00 civarında dinliyorsun · $persona (tüm zamanlar)".format(peak))
+            )
         }
     }
 
@@ -1286,9 +1815,7 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
+        if (checkSelfPermission(audioPermission()) == PackageManager.PERMISSION_GRANTED) {
             if (!loaded) loadSongs()
         } else {
             statusText.text = "Müzik izni verilmedi. Şarkıları göstermek için izin gerekli."
@@ -1484,6 +2011,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
         player?.removeListener(playerListener)
         player = null
+        fx = null
         if (Build.VERSION.SDK_INT >= 33) {
             (backCallback as? android.window.OnBackInvokedCallback)?.let {
                 onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it)
@@ -1495,5 +2023,10 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
         }
         super.onDestroy()
+    }
+
+    companion object {
+        private const val REQ_EXPORT = 101
+        private const val REQ_IMPORT = 102
     }
 }
